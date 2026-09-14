@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+pandas
+datasets
+anthropic
+pydantic-settings
+pytest
+streamlit
