@@ -1,3 +1,4 @@
+import ftfy
 import pandas as pd
 
 from data.schema import Restaurant
@@ -60,7 +61,10 @@ def preprocess(raw_df: pd.DataFrame) -> pd.DataFrame:
     """
     df = raw_df.rename(columns=RAW_COLUMNS)[list(RAW_COLUMNS.values())].copy()
 
-    df["name"] = df["name"].str.strip()
+    # A small fraction of names in the raw dataset are mojibake (multiply
+    # re-encoded UTF-8, e.g. "SantÃÂÃÂ..." for "Santé") — ftfy repairs most
+    # of it; any residual garbling is a pre-existing source-data defect.
+    df["name"] = df["name"].apply(ftfy.fix_text).str.strip()
     df["location"] = df["location"].str.strip()
     df["cuisines"] = df["cuisines"].apply(_split_cuisines)
 

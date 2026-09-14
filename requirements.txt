@@ -6,3 +6,4 @@ anthropic
 pydantic-settings
 pytest
 streamlit
+ftfy
