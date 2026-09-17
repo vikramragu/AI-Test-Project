@@ -13,11 +13,23 @@ from pydantic import ValidationError
 from config import get_settings
 from core.models import RecommendationResult, UserPreferences
 from core.prompt_builder import RECOMMENDATION_TOOL, TOOL_NAME, build_messages
+from core.rate_limiter import RateLimitBudgetExceeded, SlidingWindowRateLimiter
 from data.schema import Restaurant
 
 RETRYABLE_ERRORS = (RateLimitError, APITimeoutError, APIConnectionError, InternalServerError)
 MAX_ATTEMPTS = 3
 BACKOFF_SECONDS = 1.0
+
+# Rough token estimator for the pre-flight rate-limit check, calibrated
+# against real Groq responses: chars/4 underestimated actual prompt_tokens
+# by 5-20% (tool schema + JSON overhead isn't 1:1 with plain-English chars),
+# and completion_tokens (including this model's internal reasoning tokens)
+# ran 660-770 regardless of candidate count in testing. Overestimating here
+# is safe -- it just throttles slightly earlier -- underestimating risks a
+# real 429 from the provider.
+CHARS_PER_TOKEN_ESTIMATE = 4
+PROMPT_ESTIMATE_SAFETY_MARGIN = 1.3
+RESERVED_COMPLETION_TOKENS = 1000
 
 
 class LLMError(Exception):
@@ -28,22 +40,56 @@ def _client() -> Groq:
     return Groq(api_key=get_settings().groq_api_key)
 
 
+def _estimate_tokens(messages: list[dict]) -> int:
+    tool_chars = len(json.dumps(RECOMMENDATION_TOOL))
+    message_chars = sum(len(m["content"]) for m in messages)
+    estimated_prompt_tokens = (
+        (message_chars + tool_chars) / CHARS_PER_TOKEN_ESTIMATE
+    ) * PROMPT_ESTIMATE_SAFETY_MARGIN
+    return int(estimated_prompt_tokens) + RESERVED_COMPLETION_TOKENS
+
+
+_rate_limiter: SlidingWindowRateLimiter | None = None
+
+
+def _get_rate_limiter() -> SlidingWindowRateLimiter:
+    global _rate_limiter
+    if _rate_limiter is None:
+        settings = get_settings()
+        _rate_limiter = SlidingWindowRateLimiter(
+            requests_per_minute=settings.llm_requests_per_minute,
+            requests_per_day=settings.llm_requests_per_day,
+            tokens_per_minute=settings.llm_tokens_per_minute,
+            tokens_per_day=settings.llm_tokens_per_day,
+            max_wait_seconds=settings.llm_rate_limit_max_wait_seconds,
+        )
+    return _rate_limiter
+
+
 def get_recommendations(
     candidates: list[Restaurant], preferences: UserPreferences
 ) -> RecommendationResult:
     """Call the LLM to rank/explain candidates, retrying on transient errors.
 
     Raises LLMError (never returns a partial/untrusted result) if the call
-    fails after retries, returns malformed output, or recommends a
-    restaurant not present in `candidates` -- callers should catch this and
-    fall through to core.fallback.fallback_rank.
+    fails after retries, returns malformed output, recommends a restaurant
+    not present in `candidates`, or would exceed the configured client-side
+    rate-limit budget -- callers should catch this and fall through to
+    core.fallback.fallback_rank.
     """
     settings = get_settings()
     messages = build_messages(candidates, preferences)
     client = _client()
+    rate_limiter = _get_rate_limiter()
+    estimated_tokens = _estimate_tokens(messages)
 
     last_error: Exception | None = None
     for attempt in range(1, MAX_ATTEMPTS + 1):
+        try:
+            rate_limiter.acquire(estimated_tokens)
+        except RateLimitBudgetExceeded as exc:
+            raise LLMError(f"Local rate-limit budget exceeded: {exc}") from exc
+
         try:
             response = client.chat.completions.create(
                 model=settings.llm_model,
@@ -63,6 +109,8 @@ def get_recommendations(
         except Exception as exc:
             raise LLMError(f"Groq API call failed: {exc}") from exc
         else:
+            if response.usage is not None:
+                rate_limiter.record_actual_tokens(estimated_tokens, response.usage.total_tokens)
             return _parse_response(response, candidates)
 
     raise LLMError(f"Groq API call failed: {last_error}") from last_error

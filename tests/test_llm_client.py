@@ -32,7 +32,19 @@ def make_response(arguments: dict | str, tool_calls: bool = True):
     tool_call = SimpleNamespace(function=SimpleNamespace(name="provide_recommendations", arguments=args_str))
     message = SimpleNamespace(tool_calls=[tool_call] if tool_calls else [])
     choice = SimpleNamespace(message=message)
-    return SimpleNamespace(choices=[choice])
+    usage = SimpleNamespace(total_tokens=1234)
+    return SimpleNamespace(choices=[choice], usage=usage)
+
+
+@pytest.fixture(autouse=True)
+def reset_rate_limiter():
+    """Each test gets a fresh rate limiter built from real settings, so
+    accumulated usage from other tests can't cause spurious throttling."""
+    import core.llm_client as llm_client_module
+
+    llm_client_module._rate_limiter = None
+    yield
+    llm_client_module._rate_limiter = None
 
 
 VALID_ARGS = {
@@ -167,3 +179,40 @@ def test_non_retryable_error_fails_immediately(mock_client_factory, preferences)
         get_recommendations([make_restaurant()], preferences)
 
     assert mock_client.chat.completions.create.call_count == 1
+
+
+@patch("core.llm_client._get_rate_limiter")
+@patch("core.llm_client._client")
+def test_local_rate_limit_budget_exceeded_never_calls_api(
+    mock_client_factory, mock_get_rate_limiter, preferences
+):
+    from core.rate_limiter import RateLimitBudgetExceeded
+
+    mock_client = MagicMock()
+    mock_client_factory.return_value = mock_client
+    mock_limiter = MagicMock()
+    mock_limiter.acquire.side_effect = RateLimitBudgetExceeded("Daily token limit reached")
+    mock_get_rate_limiter.return_value = mock_limiter
+
+    with pytest.raises(LLMError, match="rate-limit budget exceeded"):
+        get_recommendations([make_restaurant()], preferences)
+
+    mock_client.chat.completions.create.assert_not_called()
+
+
+@patch("core.llm_client._get_rate_limiter")
+@patch("core.llm_client._client")
+def test_successful_call_acquires_budget_and_records_actual_usage(
+    mock_client_factory, mock_get_rate_limiter, preferences
+):
+    mock_client = MagicMock()
+    mock_client.chat.completions.create.return_value = make_response(VALID_ARGS)
+    mock_client_factory.return_value = mock_client
+    mock_limiter = MagicMock()
+    mock_get_rate_limiter.return_value = mock_limiter
+
+    get_recommendations([make_restaurant()], preferences)
+
+    assert mock_limiter.acquire.call_count == 1
+    estimated_tokens = mock_limiter.acquire.call_args[0][0]
+    mock_limiter.record_actual_tokens.assert_called_once_with(estimated_tokens, 1234)

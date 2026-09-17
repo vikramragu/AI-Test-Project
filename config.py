@@ -13,6 +13,15 @@ class Settings(BaseSettings):
     max_candidates_to_llm: int = 20
     log_level: str = "INFO"
 
+    # Client-side enforcement of the Groq openai/gpt-oss-120b free-tier limits,
+    # so we throttle/fail over to the fallback ranker instead of hitting real
+    # 429s. Override via env if the plan or model changes.
+    llm_requests_per_minute: int = 30
+    llm_requests_per_day: int = 1000
+    llm_tokens_per_minute: int = 8000
+    llm_tokens_per_day: int = 200000
+    llm_rate_limit_max_wait_seconds: float = 20.0
+
 
 @lru_cache
 def get_settings() -> Settings:

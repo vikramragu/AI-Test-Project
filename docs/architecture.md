@@ -103,6 +103,7 @@ flowchart TD
 - Thin wrapper around the `groq` SDK: builds the request, attaches the tool schema (with `tool_choice` forcing that specific tool), handles timeouts/retries (exponential backoff, max 3 attempts) for retryable errors (rate limit, timeout, connection, 5xx); non-retryable errors (auth, bad request) fail fast without retrying.
 - Model selection is config-driven (`openai/gpt-oss-120b` default; `qwen/qwen3.6-27b` is a supported alternative via the same env var).
 - Validates the response is grounded in the candidate list (every recommended name must match a candidate exactly) before returning it — a hallucinated restaurant is treated as an LLM failure, not returned to the user.
+- Enforces the model's published rate limits client-side via `core/rate_limiter.py` (`SlidingWindowRateLimiter`, config-driven: `LLM_REQUESTS_PER_MINUTE`/`_PER_DAY`, `LLM_TOKENS_PER_MINUTE`/`_PER_DAY`) before every attempt, so the app degrades to the fallback ranker predictably instead of retry-looping against real 429s. Token cost per call is estimated pre-flight (calibrated against real usage) and corrected with the API's actual `usage.total_tokens` afterward. On `openai/gpt-oss-120b`'s free tier, the 8K-tokens-per-minute limit is the binding constraint, not the 30-requests-per-minute limit — a single max-size (20-candidate) call runs ~2,400 tokens, so only ~3-5 LLM-backed recommendations are sustainable per minute before falling back.
 - On repeated failure, malformed structured output, or a groundedness violation, raises a typed exception that the API layer catches to invoke the fallback path.
 
 ### 4.6 Fallback Ranker (`core/fallback.py`)
@@ -118,7 +119,7 @@ flowchart TD
 
 ### 4.8 Config (`config.py`)
 
-- `pydantic-settings` `Settings` class reading from `.env`: `GROQ_API_KEY`, `LLM_MODEL`, `DATASET_NAME`, `CACHE_DIR`, `MAX_CANDIDATES_TO_LLM`, `LOG_LEVEL`.
+- `pydantic-settings` `Settings` class reading from `.env`: `GROQ_API_KEY`, `LLM_MODEL`, `DATASET_NAME`, `CACHE_DIR`, `MAX_CANDIDATES_TO_LLM`, `LOG_LEVEL`, `LLM_REQUESTS_PER_MINUTE`, `LLM_REQUESTS_PER_DAY`, `LLM_TOKENS_PER_MINUTE`, `LLM_TOKENS_PER_DAY`, `LLM_RATE_LIMIT_MAX_WAIT_SECONDS`.
 
 ## 5. Data Flow (Sequence)
 
