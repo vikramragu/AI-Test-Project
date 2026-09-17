@@ -4,10 +4,10 @@ Companion to [implementation-plan.md](./implementation-plan.md). Organized by th
 
 ## Phase 0 — Project Setup
 
-- Missing `.env` / missing `ANTHROPIC_API_KEY` at startup — should fail fast with a clear message, not a cryptic error deep in the LLM call path.
+- Missing `.env` / missing `GROQ_API_KEY` at startup — should fail fast with a clear message, not a cryptic error deep in the LLM call path.
 - `.env` present but with an empty-string or whitespace-only value for a required setting.
 - Running from a directory other than the repo root — relative paths (`data/cache/`) resolving incorrectly.
-- Conflicting dependency versions between `pandas`/`datasets`/`anthropic` — pin versions in `requirements.txt` to avoid silent breakage.
+- Conflicting dependency versions between `pandas`/`datasets`/`groq` — pin versions in `requirements.txt` to avoid silent breakage.
 
 ## Phase 1 — Data Ingestion & Preprocessing
 
@@ -91,11 +91,11 @@ Companion to [implementation-plan.md](./implementation-plan.md). Organized by th
 
 ## Phase 6 — Hardening & Non-Functional Pass
 
-- Logs must not leak the `ANTHROPIC_API_KEY` or full user free-text preferences if that's considered sensitive — confirm log statements don't dump raw request/response bodies carelessly.
+- Logs must not leak the `GROQ_API_KEY` or full user free-text preferences if that's considered sensitive — confirm log statements don't dump raw request/response bodies carelessly.
 - High-cardinality logging (logging every candidate restaurant on every request) creating excessive log volume — log counts/IDs, not full payloads, by default.
 - Startup failure path (no cache, no network) actually exits/errors clearly rather than the API coming up "healthy" with an empty dataset.
 - Re-verify the top-15–20 cap is enforced after relaxation logic runs, not just on the initial filter pass (relaxation could theoretically widen the set before truncation — order of operations matters).
-- Load/soak test: repeated requests over time don't leak memory or file handles (dataset singleton, HTTP client reuse for the Anthropic SDK).
+- Load/soak test: repeated requests over time don't leak memory or file handles (dataset singleton, HTTP client reuse for the Groq SDK).
 - Clock/timeout edge cases: what happens if the LLM call is slow enough to approach the retry ceiling repeatedly under sustained load (cascading latency).
 
 ## Phase 7 — Packaging & Docs

@@ -25,7 +25,7 @@ flowchart TD
     subgraph Core["Recommendation Core"]
         FILTER[Filtering Engine<br/>pandas]
         PROMPT[Prompt Builder]
-        LLM[LLM Client<br/>Anthropic API]
+        LLM[LLM Client<br/>Groq API]
         PARSE[Response Parser<br/>structured JSON]
         FALLBACK[Fallback Ranker<br/>non-LLM]
     end
@@ -51,7 +51,7 @@ flowchart TD
 | Language | Python 3.11+ | Best support for `datasets` (Hugging Face), `pandas`, and LLM SDKs |
 | Backend API | FastAPI | Async, typed via Pydantic, easy to test and containerize |
 | Data ingestion | `datasets` (Hugging Face) + `pandas` | Native HF dataset loading; pandas for filtering/aggregation |
-| LLM | Anthropic Claude (`claude-sonnet-5`, fallback `claude-haiku-4-5`) via `anthropic` SDK | Strong reasoning + explanation quality; tool-use for structured JSON output; Haiku fallback for cost-sensitive calls |
+| LLM | Groq (`openai/gpt-oss-120b`, alt. `qwen/qwen3.6-27b`) via `groq` SDK | Low-latency, low-cost inference; OpenAI-compatible tool/function-calling for structured JSON output |
 | Frontend | Streamlit (MVP) | Fastest path to a usable UI for forms + result cards; can be swapped for React later without touching the core |
 | Config/secrets | `pydantic-settings` + `.env` | Centralized, typed config; keeps API keys out of source |
 | Testing | `pytest` | Unit tests for filtering logic and prompt construction; mocked LLM responses |
@@ -95,13 +95,15 @@ flowchart TD
 - Builds a system prompt establishing the assistant's role ("You are a restaurant recommendation expert...") and output contract.
 - Injects the filtered candidate list as compact structured data (JSON) rather than prose, to keep token usage low and make the input unambiguous to the model.
 - Includes the user's raw free-text preferences (e.g., "family-friendly") as context the LLM should reason over, since these aren't captured by the hard filters.
-- Requests a **structured JSON output** via Claude tool-use/function-calling (not free-form text) so the response is deterministic to parse — schema: `{ recommendations: [{ name, cuisine, rating, cost, explanation }], summary }`.
+- Also instructs the model to treat the free-text preferences strictly as data to reason about, never as instructions to follow — mitigates prompt injection via that field (see edge-cases.md).
+- Requests a **structured JSON output** via Groq's OpenAI-compatible tool/function-calling (not free-form text) so the response is deterministic to parse — schema: `{ recommendations: [{ name, cuisine, rating, cost, explanation }], summary }`.
 
 ### 4.5 LLM Client (`core/llm_client.py`)
 
-- Thin wrapper around the `anthropic` SDK: builds the request, attaches the tool schema, handles timeouts/retries (exponential backoff, max 2–3 attempts).
-- Model selection is config-driven (`claude-sonnet-5` default, cheaper/faster model swappable via env var).
-- On repeated failure or malformed structured output, raises a typed exception that the API layer catches to invoke the fallback path.
+- Thin wrapper around the `groq` SDK: builds the request, attaches the tool schema (with `tool_choice` forcing that specific tool), handles timeouts/retries (exponential backoff, max 3 attempts) for retryable errors (rate limit, timeout, connection, 5xx); non-retryable errors (auth, bad request) fail fast without retrying.
+- Model selection is config-driven (`openai/gpt-oss-120b` default; `qwen/qwen3.6-27b` is a supported alternative via the same env var).
+- Validates the response is grounded in the candidate list (every recommended name must match a candidate exactly) before returning it — a hallucinated restaurant is treated as an LLM failure, not returned to the user.
+- On repeated failure, malformed structured output, or a groundedness violation, raises a typed exception that the API layer catches to invoke the fallback path.
 
 ### 4.6 Fallback Ranker (`core/fallback.py`)
 
@@ -116,7 +118,7 @@ flowchart TD
 
 ### 4.8 Config (`config.py`)
 
-- `pydantic-settings` `Settings` class reading from `.env`: `ANTHROPIC_API_KEY`, `LLM_MODEL`, `DATASET_NAME`, `CACHE_DIR`, `MAX_CANDIDATES_TO_LLM`, `LOG_LEVEL`.
+- `pydantic-settings` `Settings` class reading from `.env`: `GROQ_API_KEY`, `LLM_MODEL`, `DATASET_NAME`, `CACHE_DIR`, `MAX_CANDIDATES_TO_LLM`, `LOG_LEVEL`.
 
 ## 5. Data Flow (Sequence)
 
@@ -126,7 +128,7 @@ sequenceDiagram
     participant A as FastAPI
     participant F as Filtering Engine
     participant P as Prompt Builder
-    participant L as LLM (Claude)
+    participant L as LLM (Groq)
     participant C as Cached Dataset
 
     U->>A: POST /recommendations (preferences)
@@ -204,4 +206,4 @@ test-ai-project/
 - **Conversational refinement**: support multi-turn follow-ups ("show me cheaper options") by keeping prior filtered candidates and preferences in session state.
 - **Persistence**: add SQLite/Postgres if user history, saved preferences, or feedback loops (thumbs up/down on recommendations) are required.
 - **Alternate frontend**: the API is framework-agnostic — Streamlit can be replaced with a React/Next.js frontend without changing `core/` or `data/`.
-- **Alternate LLM provider**: `llm_client.py` isolates all Anthropic-specific code, so swapping providers touches one module.
+- **Alternate LLM provider**: `llm_client.py` isolates all Groq-specific code, so swapping providers (or switching between `openai/gpt-oss-120b` and `qwen/qwen3.6-27b`, or another Groq-hosted model) touches one module.

@@ -8,8 +8,8 @@ Phase-wise build plan derived from [problemStatement.md](./problemStatement.md) 
 
 - Initialize git repo, `.gitignore` (Python, `data/cache/`, `.env`).
 - Create folder structure from architecture §6 (`data/`, `core/`, `api/`, `frontend/`, `tests/`).
-- Set up `requirements.txt` (or `pyproject.toml`): `fastapi`, `uvicorn`, `pandas`, `datasets`, `anthropic`, `pydantic-settings`, `pytest`, `streamlit`.
-- Add `config.py` with `pydantic-settings` `Settings` (`ANTHROPIC_API_KEY`, `LLM_MODEL`, `DATASET_NAME`, `CACHE_DIR`, `MAX_CANDIDATES_TO_LLM`, `LOG_LEVEL`) and `.env.example`.
+- Set up `requirements.txt` (or `pyproject.toml`): `fastapi`, `uvicorn`, `pandas`, `datasets`, `groq`, `pydantic-settings`, `pytest`, `streamlit`.
+- Add `config.py` with `pydantic-settings` `Settings` (`GROQ_API_KEY`, `LLM_MODEL`, `DATASET_NAME`, `CACHE_DIR`, `MAX_CANDIDATES_TO_LLM`, `LOG_LEVEL`) and `.env.example`.
 - Verify `pytest` runs (even with zero tests) and `uvicorn api.main:app` boots an empty FastAPI app.
 
 **Exit criteria**: Empty app boots locally; config loads from `.env`; repo structure matches architecture doc.
@@ -48,19 +48,20 @@ Phase-wise build plan derived from [problemStatement.md](./problemStatement.md) 
 
 ## Phase 3 — LLM Integration (Prompting & Ranking)
 
-**Goal**: Turn a filtered candidate list into ranked, explained recommendations via Claude.
+**Goal**: Turn a filtered candidate list into ranked, explained recommendations via an LLM served by Groq.
 
-- `core/prompt_builder.py`: system prompt (role + output contract), inject candidates as compact JSON, include free-text preferences, define the tool-use JSON schema (`{ recommendations: [{ name, cuisine, rating, cost, explanation }], summary }`).
-- `core/llm_client.py`: `anthropic` SDK wrapper — request construction, tool-use schema attachment, timeout + retry/backoff (max 2–3 attempts), typed exception on repeated failure or schema-invalid output.
+- **LLM provider**: [Groq](https://groq.com) via the `groq` Python SDK (OpenAI-compatible chat completions API). Model is config-driven (`LLM_MODEL` env var, default `openai/gpt-oss-120b`); `qwen/qwen3.6-27b` is a supported alternative on the same code path. Structured output uses Groq's OpenAI-style tool/function-calling (`tools` + `tool_choice` forcing the one tool), not free-form text.
+- `core/prompt_builder.py`: system prompt (role + output contract), inject candidates as compact JSON, include free-text preferences, define the tool-call JSON schema (`{ recommendations: [{ name, cuisine, rating, cost, explanation }], summary }`). System prompt explicitly instructs the model to treat free-text preferences as data, not instructions, to reduce prompt-injection risk.
+- `core/llm_client.py`: `groq` SDK wrapper — request construction, tool schema attachment, timeout + retry/backoff (max 3 attempts) for retryable errors (`RateLimitError`, `APITimeoutError`, `APIConnectionError`, `InternalServerError`); non-retryable errors (`AuthenticationError`, `BadRequestError`, etc.) fail immediately without retrying. Validates the response is grounded (every recommended name must match a candidate exactly) before returning it. Raises a typed `LLMError` on repeated failure, schema-invalid output, or a groundedness violation.
 - `core/fallback.py`: pure-pandas weighted ranking (rating + cost) with template-generated explanations, used when the LLM path fails.
 - `tests/test_prompt_builder.py`: prompt/schema construction is correct given known candidates.
-- `tests/test_llm_client.py`: mocked Anthropic client — success path parses correctly; timeout/malformed-JSON path raises the expected exception.
+- `tests/test_llm_client.py`: mocked Groq client — success path parses correctly; malformed tool-call JSON, hallucinated restaurant names, and empty recommendations each raise `LLMError`; retryable errors are retried up to the cap and non-retryable errors fail fast without retrying.
 - `tests/test_fallback.py`: fallback ranking produces valid output shape without ever calling the LLM.
-- Manual smoke test against the real Anthropic API with a handful of realistic preference sets — check explanation quality, not just schema validity.
+- Manual smoke test against the real Groq API (requires a `GROQ_API_KEY`) with a handful of realistic preference sets — check explanation quality, not just schema validity.
 
 **Deliverables**: `core/prompt_builder.py`, `core/llm_client.py`, `core/fallback.py`, tests, a short note in the repo (or this doc) on prompt iterations if the initial prompt needs tuning.
 
-**Exit criteria**: Given a fixed candidate list, the LLM path returns schema-valid, sensible recommendations; forcing an LLM failure (bad API key, mocked timeout) correctly falls through to the fallback ranker without crashing.
+**Exit criteria**: Given a fixed candidate list, the LLM path returns schema-valid, sensible recommendations grounded in the candidate list; forcing an LLM failure (bad API key, mocked timeout, mocked hallucination) correctly falls through to the fallback ranker without crashing.
 
 ## Phase 4 — API Layer
 
@@ -110,7 +111,7 @@ Phase-wise build plan derived from [problemStatement.md](./problemStatement.md) 
 - `.env.example` kept in sync with actual required config keys.
 - `README.md`: setup instructions (env vars, install, run API, run frontend), a short architecture pointer back to `docs/architecture.md`.
 
-**Exit criteria**: `docker-compose up` (with a valid `ANTHROPIC_API_KEY` in `.env`) brings up a working system end-to-end for a fresh clone.
+**Exit criteria**: `docker-compose up` (with a valid `GROQ_API_KEY` in `.env`) brings up a working system end-to-end for a fresh clone.
 
 ## Out of Scope for This Plan (see architecture §9)
 
