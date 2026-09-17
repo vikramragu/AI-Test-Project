@@ -1,3 +1,11 @@
+import sys
+from pathlib import Path
+
+# `streamlit run` only puts this script's own directory on sys.path, not the
+# project root, so the top-level `config`/`core`/`data` imports fail unless
+# we add it ourselves -- this must happen before those imports below.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 import httpx
 import streamlit as st
 
