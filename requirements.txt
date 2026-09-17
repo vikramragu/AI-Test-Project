@@ -2,7 +2,7 @@ fastapi
 uvicorn[standard]
 pandas
 datasets
-anthropic
+groq
 pydantic-settings
 pytest
 streamlit
