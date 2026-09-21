@@ -75,7 +75,7 @@ Companion to [implementation-plan.md](./implementation-plan.md). Organized by th
 - Response must clearly distinguish the three flows (normal / relaxed-filters / fallback-used) so the frontend doesn't need to guess from field absence.
 - Request with values technically valid but nonsensical (e.g., `min_rating: -5`, `min_rating: 999`) — validate ranges, not just types.
 - CORS misconfiguration blocking the frontend in a deployed (non-localhost) environment.
-- Timeout on the client side (browser/Streamlit) if the LLM call is slow — confirm the API itself has a bounded worst-case latency (retry/backoff ceiling).
+- Timeout on the client side (browser fetch) if the LLM call is slow — confirm the API itself has a bounded worst-case latency (retry/backoff ceiling); the frontend's fetch has its own timeout (`REQUEST_TIMEOUT_MS` in `app.js`) as a backstop.
 
 ## Phase 5 — Frontend
 
@@ -101,7 +101,7 @@ Companion to [implementation-plan.md](./implementation-plan.md). Organized by th
 ## Phase 7 — Packaging & Docs
 
 - `docker-compose up` on a machine with no `.env` file at all (only `.env.example` present) — should fail with an actionable message, not a confusing container crash loop.
-- Port conflicts (API or Streamlit port already in use on the host).
+- Port conflicts (API or the static frontend server's port already in use on the host).
 - Fresh clone with no pre-downloaded HF dataset and no cached parquet baked into the image — first `docker-compose up` needs network access to succeed; document this requirement.
 - Frontend container unable to reach the API container by hostname (docker-compose networking misconfiguration).
 - README instructions going stale relative to actual required env vars in `config.py` (drift between `.env.example` and `Settings`).

@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Bangalore Bites</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<style>
+  @layer base {
+    html, body { margin: 0; padding: 0; }
+    body { overscroll-behavior: none; }
+  }
+  ::-webkit-scrollbar { display: none; }
+  .material-symbols-outlined { font-family: 'Material Symbols Outlined'; font-weight: normal; font-style: normal; }
+</style>
+<script src="https://cdn.tailwindcss.com"></script>
+<script id="tailwind-config">
+tailwind.config = {
+  darkMode: "class",
+  theme: {
+    extend: {
+      colors: {"secondary-container":"#ee9800","tertiary-fixed":"#8ff1ff","on-error":"#690005","secondary-fixed-dim":"#ffb95f","on-secondary-fixed-variant":"#653e00","error":"#ffb4ab","surface-dim":"#131316","on-secondary-fixed":"#2a1700","on-secondary-container":"#5b3800","on-tertiary":"#00363c","surface-container-low":"#1b1b1e","on-primary-container":"#672000","on-tertiary-fixed":"#001f23","primary":"#ffb59a","secondary":"#ffb95f","inverse-primary":"#a73a05","outline-variant":"#58423a","on-error-container":"#ffdad6","background":"#131316","surface-tint":"#ffb59a","surface-container-lowest":"#0e0e11","on-primary-fixed":"#380d00","on-tertiary-container":"#003f45","surface-bright":"#39393c","outline":"#a78b81","tertiary-fixed-dim":"#4fd8e9","error-container":"#93000a","tertiary":"#4fd8e9","surface-container-high":"#2a2a2d","on-tertiary-fixed-variant":"#004f56","on-surface":"#e4e1e6","on-background":"#e4e1e6","inverse-surface":"#e4e1e6","on-primary-fixed-variant":"#802900","inverse-on-surface":"#303033","on-secondary":"#472a00","tertiary-container":"#00b2c2","surface-container-highest":"#353438","primary-container":"#ff7a45","on-surface-variant":"#dfc0b5","on-primary":"#5b1b00","surface-variant":"#353438","surface":"#131316","secondary-fixed":"#ffddb8","primary-fixed-dim":"#ffb59a","surface-container":"#1f1f22","primary-fixed":"#ffdbcf"},
+      borderRadius: {"DEFAULT":"0.25rem","lg":"0.5rem","xl":"0.75rem","full":"9999px"},
+      spacing: {"space-xl":"2.5rem","margin-mobile":"1rem","space-xs":"0.25rem","space-md":"1rem","margin":"2rem","space-sm":"0.5rem","gutter-mobile":"0.75rem","gutter":"1.25rem","space-lg":"1.5rem"},
+      fontFamily: {"headline-sm":["Plus Jakarta Sans"],"body-lg":["Plus Jakarta Sans"],"body-sm":["Plus Jakarta Sans"],"body-md":["Plus Jakarta Sans"],"label-md":["Plus Jakarta Sans"],"label-sm":["Plus Jakarta Sans"],"headline-xl":["Plus Jakarta Sans"],"headline-lg":["Plus Jakarta Sans"],"headline-md":["Plus Jakarta Sans"]},
+      fontSize: {"headline-sm":["18px",{"lineHeight":"24px","fontWeight":"600"}],"body-lg":["16px",{"lineHeight":"26px","fontWeight":"400"}],"body-sm":["12px",{"lineHeight":"18px","fontWeight":"400"}],"body-md":["14px",{"lineHeight":"22px","fontWeight":"400"}],"label-md":["13px",{"lineHeight":"16px","letterSpacing":"0.01em","fontWeight":"600"}],"label-sm":["11px",{"lineHeight":"14px","letterSpacing":"0.05em","fontWeight":"700"}],"headline-xl":["40px",{"lineHeight":"48px","letterSpacing":"-0.02em","fontWeight":"800"}],"headline-lg":["32px",{"lineHeight":"40px","letterSpacing":"-0.015em","fontWeight":"700"}],"headline-md":["22px",{"lineHeight":"28px","letterSpacing":"-0.01em","fontWeight":"600"}]}
+    }
+  }
+}
+</script>
+</head>
+<body class="bg-background font-body-md text-body-md text-on-surface antialiased">
+
+<header class="fixed top-0 left-0 w-full z-50 bg-surface/85 backdrop-blur-xl shadow-[0_4px_24px_rgba(0,0,0,0.5)]">
+  <div class="h-16 max-w-[1280px] mx-auto px-margin-mobile md:px-margin flex items-center justify-between gap-gutter">
+    <div class="flex items-center gap-space-sm">
+      <div class="w-9 h-9 rounded-xl bg-primary-container/20 flex items-center justify-center text-primary-container">
+        <span class="material-symbols-outlined text-[22px]">restaurant</span>
+      </div>
+      <div class="flex items-center gap-space-xs">
+        <span class="font-headline-sm text-headline-sm text-on-surface tracking-tight font-bold">Bangalore Bites</span>
+        <span class="font-label-sm text-label-sm bg-surface-container-highest text-primary px-space-xs py-0.5 rounded">AI Recommender</span>
+      </div>
+    </div>
+    <div class="flex items-center gap-space-md">
+      <div class="hidden sm:flex items-center gap-1.5 px-space-sm py-1 rounded-full bg-surface-container-high text-on-surface-variant">
+        <span class="material-symbols-outlined text-[16px] text-primary">location_on</span>
+        <span class="font-label-sm text-label-sm text-on-surface">Bengaluru, India</span>
+      </div>
+      <div class="flex items-center gap-2 px-space-sm py-1.5 rounded-full bg-surface-container-lowest" id="apiStatusPill">
+        <span class="relative flex h-2 w-2">
+          <span class="relative inline-flex rounded-full h-2 w-2 bg-outline" id="apiStatusDot"></span>
+        </span>
+        <span class="font-label-sm text-label-sm text-outline" id="apiStatusText">Checking API...</span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main class="w-full pt-20 pb-space-xl bg-background min-h-screen">
+<div class="max-w-[1280px] mx-auto px-margin-mobile md:px-margin py-space-md">
+<div class="flex flex-col w-full gap-space-md">
+
+<!-- Preferences panel -->
+<section class="relative w-full rounded-2xl bg-surface-container p-space-md md:p-space-lg shadow-[0_16px_40px_rgba(0,0,0,0.5)] overflow-hidden">
+  <div class="absolute -top-32 -right-32 w-80 h-80 bg-primary/10 rounded-full blur-3xl pointer-events-none"></div>
+  <div class="absolute -bottom-24 -left-20 w-64 h-64 bg-secondary/5 rounded-full blur-2xl pointer-events-none"></div>
+  <div class="relative z-10 flex flex-col gap-space-lg">
+
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-space-sm pb-space-sm">
+      <div class="flex items-center gap-space-sm">
+        <div class="w-10 h-10 rounded-xl bg-primary-container/20 flex items-center justify-center text-primary-container shadow-sm">
+          <span class="material-symbols-outlined text-[24px]">explore</span>
+        </div>
+        <div>
+          <h2 class="font-headline-md text-headline-md text-on-surface tracking-tight">Find your next meal</h2>
+          <p class="font-body-sm text-body-sm text-on-surface-variant">AI-powered restaurant recommendations for Bangalore neighborhoods</p>
+        </div>
+      </div>
+      <button class="font-label-md text-label-md text-primary hover:text-primary-container flex items-center gap-1 transition-colors self-start md:self-auto" id="resetFiltersBtn" type="button">
+        <span class="material-symbols-outlined text-[16px]">restart_alt</span>
+        Reset filters
+      </button>
+    </div>
+
+    <form class="grid grid-cols-1 md:grid-cols-12 gap-space-md" id="filterForm">
+      <div class="md:col-span-4 flex flex-col gap-space-xs">
+        <label class="font-label-md text-label-md text-on-surface-variant flex items-center gap-1" for="locationInput">
+          <span class="material-symbols-outlined text-[16px] text-primary">pin_drop</span>
+          Location / Neighborhood
+        </label>
+        <input class="w-full bg-surface-container-high rounded-xl py-2.5 px-3 font-body-md text-body-md text-on-surface placeholder:text-outline focus:outline-none focus:ring-1 focus:ring-primary shadow-inner" id="locationInput" placeholder="e.g. Koramangala, Indiranagar, Whitefield" type="text"/>
+        <p class="font-body-sm text-body-sm text-error hidden" id="locationError">Please enter a location.</p>
+      </div>
+
+      <div class="md:col-span-4 flex flex-col gap-space-xs">
+        <label class="font-label-md text-label-md text-on-surface-variant flex items-center gap-1">
+          <span class="material-symbols-outlined text-[16px] text-secondary">payments</span>
+          Budget Range
+        </label>
+        <div class="grid grid-cols-4 gap-1 p-1 bg-surface-container-lowest rounded-xl" id="budgetPills">
+          <button class="budget-pill py-1.5 px-2 text-center rounded-lg font-label-sm text-label-sm bg-primary-container text-on-primary-container font-bold transition-all" data-budget="" type="button">Any</button>
+          <button class="budget-pill py-1.5 px-2 text-center rounded-lg font-label-sm text-label-sm text-outline hover:text-on-surface transition-all" data-budget="low" type="button">Low (₹)</button>
+          <button class="budget-pill py-1.5 px-2 text-center rounded-lg font-label-sm text-label-sm text-outline hover:text-on-surface transition-all" data-budget="medium" type="button">Medium (₹₹)</button>
+          <button class="budget-pill py-1.5 px-2 text-center rounded-lg font-label-sm text-label-sm text-outline hover:text-on-surface transition-all" data-budget="high" type="button">High (₹₹₹)</button>
+        </div>
+      </div>
+
+      <div class="md:col-span-4 flex flex-col gap-space-xs">
+        <div class="flex items-center justify-between">
+          <label class="font-label-md text-label-md text-on-surface-variant flex items-center gap-1" for="ratingSlider">
+            <span class="material-symbols-outlined text-[16px] text-secondary-fixed">star</span>
+            Minimum Rating
+          </label>
+          <span class="font-label-sm text-label-sm px-2 py-0.5 rounded-full bg-surface-container-highest text-secondary-fixed font-bold" id="ratingOutput">Any rating</span>
+        </div>
+        <div class="h-10 flex items-center px-1">
+          <input class="w-full accent-primary-container bg-surface-container-lowest h-2 rounded-lg cursor-pointer" id="ratingSlider" max="5" min="0" step="0.1" type="range" value="0"/>
+        </div>
+      </div>
+
+      <div class="md:col-span-6 flex flex-col gap-space-xs">
+        <label class="font-label-md text-label-md text-on-surface-variant flex items-center gap-1" for="cuisineInput">
+          <span class="material-symbols-outlined text-[16px] text-primary">restaurant</span>
+          Cuisine (optional)
+        </label>
+        <input class="w-full bg-surface-container-high rounded-xl py-2.5 px-3 font-body-md text-body-md text-on-surface placeholder:text-outline focus:outline-none focus:ring-1 focus:ring-primary shadow-inner" id="cuisineInput" placeholder="e.g. North Indian, Italian, Cafe" type="text"/>
+      </div>
+
+      <div class="md:col-span-6 flex flex-col gap-space-xs">
+        <label class="font-label-md text-label-md text-on-surface-variant flex items-center justify-between" for="extraPreferencesInput">
+          <span class="flex items-center gap-1">
+            <span class="material-symbols-outlined text-[16px] text-tertiary">auto_awesome</span>
+            Anything else? (optional)
+          </span>
+          <span class="text-outline font-label-sm text-label-sm" id="extraPreferencesCount">0 / 500</span>
+        </label>
+        <input class="w-full bg-surface-container-high rounded-xl py-2.5 px-3 font-body-md text-body-md text-on-surface placeholder:text-outline focus:outline-none focus:ring-1 focus:ring-primary shadow-inner" id="extraPreferencesInput" maxlength="500" placeholder="e.g. family-friendly, quick service, outdoor seating" type="text"/>
+      </div>
+
+      <div class="md:col-span-12 flex flex-col sm:flex-row items-center justify-between gap-space-md pt-space-xs">
+        <div class="flex flex-wrap items-center gap-1.5">
+          <span class="font-label-sm text-label-sm text-outline uppercase tracking-wider">Quick suggestions:</span>
+          <button class="quick-chip font-label-sm text-label-sm px-2.5 py-1 rounded-full bg-surface-container-high hover:bg-surface-container-highest text-on-surface-variant hover:text-primary transition-colors" type="button">family-friendly</button>
+          <button class="quick-chip font-label-sm text-label-sm px-2.5 py-1 rounded-full bg-surface-container-high hover:bg-surface-container-highest text-on-surface-variant hover:text-primary transition-colors" type="button">quick service</button>
+          <button class="quick-chip font-label-sm text-label-sm px-2.5 py-1 rounded-full bg-surface-container-high hover:bg-surface-container-highest text-on-surface-variant hover:text-primary transition-colors" type="button">outdoor seating</button>
+          <button class="quick-chip font-label-sm text-label-sm px-2.5 py-1 rounded-full bg-surface-container-high hover:bg-surface-container-highest text-on-surface-variant hover:text-primary transition-colors" type="button">good for groups</button>
+        </div>
+        <button class="w-full sm:w-auto bg-primary-container hover:bg-secondary-container text-on-primary-container font-headline-sm text-headline-sm py-2.5 px-space-lg rounded-xl flex items-center justify-center gap-space-xs shadow-[0_4px_24px_rgba(255,122,69,0.35)] transition-all hover:scale-[1.02] active:scale-[0.98]" id="submitSearchBtn" type="submit">
+          <span class="material-symbols-outlined text-[20px]">auto_awesome</span>
+          <span id="submitBtnLabel">Find Restaurants</span>
+        </button>
+      </div>
+    </form>
+  </div>
+</section>
+
+<!-- Quick location chips (real neighborhoods in the dataset) -->
+<div class="flex flex-wrap items-center gap-1.5 px-space-xs" id="quickLocationChips">
+  <span class="font-label-sm text-label-sm text-outline uppercase tracking-wider">Popular neighborhoods:</span>
+</div>
+
+<!-- Banners -->
+<div class="flex flex-col gap-space-sm" id="bannersContainer">
+  <div class="hidden w-full bg-error-container/20 text-on-error-container px-space-md py-space-sm rounded-xl items-center gap-space-sm shadow-sm" id="errorBanner">
+    <span class="material-symbols-outlined text-[20px] text-error shrink-0">error</span>
+    <p class="font-body-sm text-body-sm text-on-surface" id="errorBannerText"></p>
+  </div>
+  <div class="hidden w-full bg-tertiary-container/15 text-tertiary-fixed px-space-md py-space-sm rounded-xl items-center gap-space-sm shadow-sm" id="infoBanner">
+    <span class="material-symbols-outlined text-[20px] text-tertiary-fixed shrink-0">info</span>
+    <p class="font-body-sm text-body-sm text-on-surface" id="infoBannerText"></p>
+  </div>
+  <div class="hidden w-full bg-secondary-container/15 text-secondary-fixed px-space-md py-space-sm rounded-xl items-center gap-space-sm shadow-sm" id="warningBanner">
+    <span class="material-symbols-outlined text-[20px] text-secondary-fixed shrink-0">warning_amber</span>
+    <p class="font-body-sm text-body-sm text-on-surface">
+      <span class="font-bold text-secondary-fixed">AI recommender unavailable:</span>
+      Showing results ranked by rating and cost instead of a personalized explanation.
+    </p>
+  </div>
+</div>
+
+<!-- AI summary -->
+<div class="hidden relative rounded-2xl bg-surface-container-high p-space-md md:p-space-lg shadow-[0_8px_32px_rgba(0,0,0,0.4)] overflow-hidden" id="aiSummaryCard">
+  <div class="absolute top-0 right-0 w-96 h-full bg-gradient-to-l from-primary/10 via-secondary/5 to-transparent pointer-events-none"></div>
+  <div class="relative z-10 flex items-start gap-space-sm">
+    <span class="material-symbols-outlined text-[20px] text-primary shrink-0">auto_awesome</span>
+    <p class="font-body-lg text-body-lg text-on-surface italic leading-relaxed" id="aiSummaryText"></p>
+  </div>
+</div>
+
+<!-- Idle placeholder (before first search) -->
+<div class="flex flex-col items-center justify-center p-space-xl bg-surface-container rounded-2xl text-center shadow-lg" id="idleView">
+  <div class="w-16 h-16 rounded-full bg-surface-container-highest flex items-center justify-center text-primary mb-space-md">
+    <span class="material-symbols-outlined text-[32px]">restaurant_menu</span>
+  </div>
+  <h3 class="font-headline-md text-headline-md text-on-surface mb-space-xs font-bold">Ready when you are</h3>
+  <p class="font-body-md text-body-md text-on-surface-variant max-w-lg">Enter a Bangalore neighborhood above and we'll find and explain the best matches for you.</p>
+</div>
+
+<!-- Loading skeleton -->
+<div class="hidden flex-col gap-space-md w-full" id="skeletonView">
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-gutter" id="skeletonGrid"></div>
+</div>
+
+<!-- No matches / location not found -->
+<div class="hidden flex-col items-center justify-center p-space-xl bg-surface-container rounded-2xl text-center shadow-lg" id="emptyStateView">
+  <div class="w-16 h-16 rounded-full bg-surface-container-highest flex items-center justify-center text-secondary mb-space-md">
+    <span class="material-symbols-outlined text-[32px]">radar</span>
+  </div>
+  <h3 class="font-headline-md text-headline-md text-on-surface mb-space-xs font-bold" id="emptyStateTitle">No matches found</h3>
+  <p class="font-body-md text-body-md text-on-surface-variant max-w-lg" id="emptyStateText"></p>
+</div>
+
+<!-- Results -->
+<div class="hidden flex-col gap-space-sm" id="resultsSection">
+  <p class="font-label-md text-label-md text-on-surface-variant" id="resultsMeta"></p>
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-gutter" id="resultsGrid"></div>
+</div>
+
+</div>
+</div>
+</main>
+
+<footer class="w-full bg-surface-container-lowest py-space-lg shadow-[0_-1px_16px_rgba(0,0,0,0.3)]">
+  <div class="max-w-[1280px] mx-auto px-margin-mobile md:px-margin flex flex-col gap-space-sm">
+    <span class="font-body-sm text-body-sm text-on-surface-variant">Recommendations combine a filtered Bangalore restaurant dataset with an LLM (Groq, openai/gpt-oss-120b) for ranking and explanations.</span>
+    <span class="font-body-sm text-body-sm text-outline">This dataset only covers Bangalore neighborhoods.</span>
+  </div>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>

@@ -8,7 +8,7 @@ Phase-wise build plan derived from [problemStatement.md](./problemStatement.md) 
 
 - Initialize git repo, `.gitignore` (Python, `data/cache/`, `.env`).
 - Create folder structure from architecture §6 (`data/`, `core/`, `api/`, `frontend/`, `tests/`).
-- Set up `requirements.txt` (or `pyproject.toml`): `fastapi`, `uvicorn`, `pandas`, `datasets`, `groq`, `pydantic-settings`, `pytest`, `streamlit`.
+- Set up `requirements.txt` (or `pyproject.toml`): `fastapi`, `uvicorn`, `pandas`, `datasets`, `groq`, `pydantic-settings`, `pytest`.
 - Add `config.py` with `pydantic-settings` `Settings` (`GROQ_API_KEY`, `LLM_MODEL`, `DATASET_NAME`, `CACHE_DIR`, `MAX_CANDIDATES_TO_LLM`, `LOG_LEVEL`) and `.env.example`.
 - Verify `pytest` runs (even with zero tests) and `uvicorn api.main:app` boots an empty FastAPI app.
 
@@ -82,12 +82,14 @@ Phase-wise build plan derived from [problemStatement.md](./problemStatement.md) 
 
 **Goal**: A usable UI for entering preferences and viewing results, per problem statement §"Output Display".
 
-- `frontend/app.py` (Streamlit): form for location, budget, cuisine, min rating, free-text extra preferences.
-- Call the FastAPI backend; render results as cards showing name, cuisine, rating, cost, and AI-generated explanation (plus an optional summary if present).
+- `frontend/index.html` + `frontend/app.js` (static, no build step; dark theme per `stitch_bangalore_bites_ai_app/DESIGN.md`): form for location, budget, cuisine, min rating, free-text extra preferences.
+- Call the FastAPI backend via `fetch()`; render results as cards showing name, cuisine, rating, cost, and AI-generated explanation (plus an optional summary if present).
 - Show a non-blocking notice when filters were relaxed or the fallback ranker was used, so the user isn't misled into thinking it's a full LLM explanation.
-- Basic loading/error states (backend unreachable, empty results).
+- Basic loading/error states (backend unreachable, empty results, no location match).
 
-**Deliverables**: Runnable `streamlit run frontend/app.py` pointed at the local API.
+**Deliverables**: `frontend/index.html` servable as a static file (e.g. `python -m http.server` from `frontend/`) pointed at the local API.
+
+> Originally built with Streamlit for the MVP (Phase 5 as first shipped); replaced with this static HTML/JS frontend once a Google Stitch-generated dark theme design was available (see `stitch_bangalore_bites_ai_app/`), per architecture §4.7/§9's "alternate frontend" extensibility note.
 
 **Exit criteria**: A person can fill the form, submit, and see readable recommendation cards for several real preference combinations (including an intentionally obscure one that triggers relaxed filters or fallback).
 

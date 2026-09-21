@@ -14,7 +14,7 @@ This document defines the technical architecture for the system described in [pr
 ```mermaid
 flowchart TD
     subgraph Client
-        UI[Web UI / Streamlit App]
+        UI[Static Web UI<br/>HTML/CSS/JS]
     end
 
     subgraph API["Backend API (FastAPI)"]
@@ -52,7 +52,7 @@ flowchart TD
 | Backend API | FastAPI | Async, typed via Pydantic, easy to test and containerize |
 | Data ingestion | `datasets` (Hugging Face) + `pandas` | Native HF dataset loading; pandas for filtering/aggregation |
 | LLM | Groq (`openai/gpt-oss-120b`, alt. `qwen/qwen3.6-27b`) via `groq` SDK | Low-latency, low-cost inference; OpenAI-compatible tool/function-calling for structured JSON output |
-| Frontend | Streamlit (MVP) | Fastest path to a usable UI for forms + result cards; can be swapped for React later without touching the core |
+| Frontend | Static HTML/CSS/Tailwind + vanilla JS | No build step; calls the FastAPI backend directly via `fetch`; can be swapped for a framework (React/Next.js) later without touching the core |
 | Config/secrets | `pydantic-settings` + `.env` | Centralized, typed config; keeps API keys out of source |
 | Testing | `pytest` | Unit tests for filtering logic and prompt construction; mocked LLM responses |
 | Packaging | `Docker` + `docker-compose` | Reproducible local/dev environment; separates API and UI containers |
@@ -113,9 +113,10 @@ flowchart TD
 
 ### 4.7 Frontend (`frontend/`)
 
-- Streamlit app (`app.py`) with a form for location, budget, cuisine, min rating, and a free-text field for extra preferences.
-- Calls the FastAPI backend over HTTP; renders results as cards (name, cuisine tags, rating badge, cost, explanation text).
-- Shows a non-blocking notice when the backend used the fallback ranker or relaxed filters.
+- Static single-page app: `index.html` (dark-themed, Tailwind CDN, design tokens from the Stitch-generated `stitch_bangalore_bites_ai_app/DESIGN.md`) + `app.js` (vanilla JS, no framework/build step). Served as static files (e.g. `python -m http.server`), independent of the API process.
+- Form for location, budget, cuisine, min rating, and a free-text field for extra preferences; calls the FastAPI backend via `fetch()` and renders results as cards (name, cuisine tags, rating badge, cost, explanation text).
+- Shows a non-blocking banner when the backend used the fallback ranker or relaxed filters, a distinct empty-state view when the location doesn't match the dataset, and an error banner if the backend is unreachable — none of these ever crash the page.
+- `API_BASE_URL` is a plain JS constant at the top of `app.js` (defaults to `http://localhost:8000`), overridable via `window.API_BASE_URL` before the script loads — this frontend has no `.env`/build step to read config from.
 
 ### 4.8 Config (`config.py`)
 
@@ -206,5 +207,5 @@ test-ai-project/
 - **Semantic matching**: add embeddings-based search (e.g., for fuzzy cuisine/location matching or free-text preference matching) if keyword/tag filtering proves too rigid.
 - **Conversational refinement**: support multi-turn follow-ups ("show me cheaper options") by keeping prior filtered candidates and preferences in session state.
 - **Persistence**: add SQLite/Postgres if user history, saved preferences, or feedback loops (thumbs up/down on recommendations) are required.
-- **Alternate frontend**: the API is framework-agnostic — Streamlit can be replaced with a React/Next.js frontend without changing `core/` or `data/`.
+- **Alternate frontend**: the API is framework-agnostic — the static HTML/JS frontend can be replaced with a React/Next.js frontend without changing `core/` or `data/`.
 - **Alternate LLM provider**: `llm_client.py` isolates all Groq-specific code, so swapping providers (or switching between `openai/gpt-oss-120b` and `qwen/qwen3.6-27b`, or another Groq-hosted model) touches one module.

@@ -22,8 +22,6 @@ class Settings(BaseSettings):
     llm_tokens_per_day: int = 200000
     llm_rate_limit_max_wait_seconds: float = 20.0
 
-    api_base_url: str = "http://localhost:8000"
-
 
 @lru_cache
 def get_settings() -> Settings:

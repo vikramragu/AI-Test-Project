@@ -5,6 +5,5 @@ datasets
 groq
 pydantic-settings
 pytest
-streamlit
 ftfy
 httpx
