@@ -88,21 +88,25 @@ instant. (Alternative: a Railway Volume mounted at `data/cache` — persists
 across restarts but adds infra to manage for no real benefit here, since the
 dataset is static and small.)
 
-### 1.5 Point the frontend at the Railway backend URL
+### 1.5 Point the frontend at the Railway backend URL — via a Vercel env var
 
 `frontend/app.js` reads `window.API_BASE_URL || "http://localhost:8000"`.
-Since the frontend is plain static JS with no build step and no `.env`
-support, the Railway URL has to be injected some other way. Simplest option
-that fits a static-only Vercel deploy: add a small inline `<script>` block at
-the top of `frontend/index.html`, before `app.js` loads:
+Rather than hardcoding the Railway URL into committed HTML, Vercel's Build
+Command (available even for a plain static site under Framework Preset
+"Other") generates a small `config.js` from an env var at build time:
 
-```html
-<script>window.API_BASE_URL = "https://<your-railway-service>.up.railway.app";</script>
-```
+- `frontend/config.js` is committed as a no-op placeholder (so local dev is
+  unaffected — `app.js`'s own `localhost:8000` fallback still applies).
+- `frontend/index.html` loads it right before `app.js`:
+  `<script src="config.js"></script>`
+- Vercel project settings:
+  - Root Directory: `frontend`
+  - Build Command: `echo "window.API_BASE_URL = \"$VITE_API_BASE_URL\";" > config.js`
+  - Output Directory: `.`
+  - Env var: `VITE_API_BASE_URL` = `https://<railway-host>` (no trailing slash)
 
-The backend URL is not a secret (it's a public REST API with no auth), so
-hardcoding it in the committed HTML is acceptable — no need for Vercel env
-vars or a build step just for this one value.
+This keeps the backend URL out of git entirely and makes changing it a
+dashboard edit + redeploy, no code change.
 
 ### 1.6 Secrets
 
@@ -117,7 +121,8 @@ dashboard, never committed. `.env` stays local-only (already gitignored).
 | `Dockerfile` (new) | Python 3.12-slim base, install deps, bake dataset cache | avoid version-support risk + cold-start downloads |
 | `config.py` | add `allowed_origins` setting | remove `allow_origins=["*"]` in prod |
 | `api/main.py` | read `allowed_origins` from settings instead of hardcoded `["*"]` | same |
-| `frontend/index.html` | add `window.API_BASE_URL` script tag | point static frontend at deployed backend |
+| `frontend/config.js` (new) | no-op placeholder, overwritten by Vercel's build command | point static frontend at deployed backend without committing the URL |
+| `frontend/index.html` | load `config.js` before `app.js` | same |
 | `.env.example` | document `ALLOWED_ORIGINS` | keep in sync per project convention |
 
 Say the word and I can implement 1.1–1.6 directly; this plan intentionally
@@ -160,15 +165,14 @@ Since `frontend/` is static HTML/CSS/JS with no build step:
 
 1. In Vercel: **New Project → Import Git Repository** → same repo.
 2. Set the project's **Root Directory** to `frontend/`.
-3. Framework preset: **Other** (no build command, no output directory
-   override needed — Vercel serves the directory as-is since it's plain
-   static files).
-4. Leave Build Command and Install Command empty.
-5. Deploy. Vercel assigns a URL like `https://<project>.vercel.app`.
-6. Once you know this URL, go back to Railway and set `ALLOWED_ORIGINS` to
-   it (§1.3), and update the `window.API_BASE_URL` script tag in
-   `frontend/index.html` (§1.5) with the Railway URL from step 2 above, then
-   redeploy the frontend so the two sides know about each other.
+3. Framework preset: **Other**.
+4. Build Command: `echo "window.API_BASE_URL = \"$VITE_API_BASE_URL\";" > config.js`
+5. Output Directory: `.`
+6. Environment Variable: `VITE_API_BASE_URL` = the Railway URL from step 2
+   above (no trailing slash).
+7. Deploy. Vercel assigns a URL like `https://<project>.vercel.app`.
+8. Once you know this URL, go back to Railway and set `ALLOWED_ORIGINS` to
+   it (§1.3).
 
 ---
 
