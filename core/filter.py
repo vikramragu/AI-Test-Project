@@ -1,8 +1,12 @@
+import logging
+
 import pandas as pd
 
 from config import get_settings
 from core.models import FilterResult, UserPreferences
 from data.preprocessor import to_restaurants
+
+logger = logging.getLogger(__name__)
 
 
 def _filter_by_budget(df: pd.DataFrame, budget: str | None) -> pd.DataFrame:
@@ -54,6 +58,9 @@ def filter_restaurants(
     working = df if not location else df[df["location"].str.casefold() == location]
 
     if working.empty:
+        logger.info(
+            "filter: location=%r not matched in dataset (0 rows)", preferences.location
+        )
         return FilterResult(candidates=[], relaxed_filters=[], location_matched=False)
 
     relaxed: list[str] = []
@@ -78,6 +85,16 @@ def filter_restaurants(
         candidates = working
 
     candidates = _sort_and_cap(candidates, max_candidates)
+
+    logger.info(
+        "filter: location=%r budget=%r cuisine=%r min_rating=%r -> candidates=%d relaxed=%s",
+        preferences.location,
+        preferences.budget,
+        preferences.cuisine,
+        preferences.min_rating,
+        len(candidates),
+        relaxed,
+    )
 
     return FilterResult(
         candidates=to_restaurants(candidates),

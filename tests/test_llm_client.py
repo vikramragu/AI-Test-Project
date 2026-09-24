@@ -200,6 +200,38 @@ def test_local_rate_limit_budget_exceeded_never_calls_api(
     mock_client.chat.completions.create.assert_not_called()
 
 
+@patch("core.llm_client._client")
+def test_more_candidates_than_cap_are_truncated_before_prompt(mock_client_factory, preferences):
+    import core.llm_client as llm_client_module
+
+    mock_client = MagicMock()
+    mock_client.chat.completions.create.return_value = make_response(VALID_ARGS)
+    mock_client_factory.return_value = mock_client
+
+    many_candidates = [make_restaurant(name=f"Restaurant {i}") for i in range(25)]
+    response_args = {
+        "recommendations": [
+            {
+                "name": "Restaurant 0",
+                "cuisine": "North Indian",
+                "rating": 4.5,
+                "cost": 800.0,
+                "explanation": "Good fit.",
+            }
+        ],
+        "summary": "N/A",
+    }
+    mock_client.chat.completions.create.return_value = make_response(response_args)
+
+    with patch(
+        "core.llm_client.build_messages", wraps=llm_client_module.build_messages
+    ) as spy_build_messages:
+        get_recommendations(many_candidates, preferences)
+
+    sent_candidates = spy_build_messages.call_args[0][0]
+    assert len(sent_candidates) == 20
+
+
 @patch("core.llm_client._get_rate_limiter")
 @patch("core.llm_client._client")
 def test_successful_call_acquires_budget_and_records_actual_usage(

@@ -1,4 +1,5 @@
 import json
+import logging
 import time
 
 from groq import (
@@ -30,6 +31,9 @@ BACKOFF_SECONDS = 1.0
 CHARS_PER_TOKEN_ESTIMATE = 4
 PROMPT_ESTIMATE_SAFETY_MARGIN = 1.3
 RESERVED_COMPLETION_TOKENS = 1000
+
+
+logger = logging.getLogger(__name__)
 
 
 class LLMError(Exception):
@@ -78,16 +82,38 @@ def get_recommendations(
     core.fallback.fallback_rank.
     """
     settings = get_settings()
+
+    # Defense-in-depth: core.filter already caps candidates at
+    # max_candidates_to_llm before this is ever called, but truncate again
+    # here so a future bug in an upstream caller can't silently blow the
+    # per-call token/cost budget.
+    if len(candidates) > settings.max_candidates_to_llm:
+        logger.warning(
+            "Received %d candidates, more than max_candidates_to_llm=%d -- truncating",
+            len(candidates),
+            settings.max_candidates_to_llm,
+        )
+        candidates = candidates[: settings.max_candidates_to_llm]
+
     messages = build_messages(candidates, preferences)
     client = _client()
     rate_limiter = _get_rate_limiter()
     estimated_tokens = _estimate_tokens(messages)
+
+    logger.info(
+        "Groq call starting: model=%s candidates=%d estimated_tokens=%d",
+        settings.llm_model,
+        len(candidates),
+        estimated_tokens,
+    )
+    start = time.monotonic()
 
     last_error: Exception | None = None
     for attempt in range(1, MAX_ATTEMPTS + 1):
         try:
             rate_limiter.acquire(estimated_tokens)
         except RateLimitBudgetExceeded as exc:
+            logger.warning("Local rate-limit budget exceeded, skipping Groq call: %s", exc)
             raise LLMError(f"Local rate-limit budget exceeded: {exc}") from exc
 
         try:
@@ -100,6 +126,9 @@ def get_recommendations(
             )
         except RETRYABLE_ERRORS as exc:
             last_error = exc
+            logger.warning(
+                "Groq call attempt %d/%d failed (retryable): %s", attempt, MAX_ATTEMPTS, exc
+            )
             if attempt < MAX_ATTEMPTS:
                 time.sleep(BACKOFF_SECONDS * attempt)
                 continue
@@ -107,11 +136,32 @@ def get_recommendations(
                 f"Groq API call failed after {MAX_ATTEMPTS} attempts: {exc}"
             ) from exc
         except Exception as exc:
+            logger.warning("Groq call failed (non-retryable): %s", exc)
             raise LLMError(f"Groq API call failed: {exc}") from exc
         else:
+            elapsed = time.monotonic() - start
+            tokens_used = response.usage.total_tokens if response.usage is not None else -1
             if response.usage is not None:
-                rate_limiter.record_actual_tokens(estimated_tokens, response.usage.total_tokens)
-            return _parse_response(response, candidates)
+                rate_limiter.record_actual_tokens(estimated_tokens, tokens_used)
+            try:
+                result = _parse_response(response, candidates)
+            except LLMError as exc:
+                logger.warning(
+                    "Groq call returned untrustworthy output after %.2fs (tokens=%d): %s",
+                    elapsed,
+                    tokens_used,
+                    exc,
+                )
+                raise
+            logger.info(
+                "Groq call succeeded in %.2fs (attempt %d/%d, tokens=%d, recommendations=%d)",
+                elapsed,
+                attempt,
+                MAX_ATTEMPTS,
+                tokens_used,
+                len(result.recommendations),
+            )
+            return result
 
     raise LLMError(f"Groq API call failed: {last_error}") from last_error
 

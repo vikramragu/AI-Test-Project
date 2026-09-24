@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 
 import pandas as pd
@@ -8,6 +9,17 @@ from data.preprocessor import preprocess
 
 RAW_CACHE_FILENAME = "zomato_raw.parquet"
 CLEAN_CACHE_FILENAME = "zomato_clean.parquet"
+
+logger = logging.getLogger(__name__)
+
+
+class DatasetUnavailableError(RuntimeError):
+    """Raised when the dataset can't be loaded from cache or downloaded.
+
+    Deliberately a clear, actionable message rather than letting a raw
+    huggingface_hub/datasets exception (often a 10+ frame internal
+    traceback with no mention of our cache path) surface to the caller.
+    """
 
 
 def _cache_dir() -> Path:
@@ -28,7 +40,15 @@ def load_raw_dataset(force_refresh: bool = False) -> pd.DataFrame:
         return pd.read_parquet(cache_path)
 
     settings = get_settings()
-    dataset = load_dataset(settings.dataset_name)["train"]
+    try:
+        dataset = load_dataset(settings.dataset_name)["train"]
+    except Exception as exc:
+        raise DatasetUnavailableError(
+            f"Could not load dataset {settings.dataset_name!r} from Hugging Face, and no "
+            f"local cache exists at {cache_path}. Check network connectivity and the "
+            f"DATASET_NAME setting, or pre-populate the cache file. "
+            f"Original error: {exc.__class__.__name__}: {exc}"
+        ) from exc
     df = dataset.to_pandas()
     df.to_parquet(cache_path, index=False)
     return df

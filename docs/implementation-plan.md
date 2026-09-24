@@ -103,9 +103,24 @@ Phase-wise build plan derived from [problemStatement.md](./problemStatement.md) 
 - Run the full test suite (`pytest`) and fix any gaps found in earlier phases' "exit criteria."
 - Light manual exploratory testing across the UI for edge cases: empty preferences, extreme budget/rating values, cuisines not present in the dataset.
 
-**Deliverables**: Updated logging, a short "known limitations" note if anything is deliberately deferred (see Phase 7 candidates below).
+**Deliverables**: Updated logging (`logging_config.py`, request-id-correlated log lines in `core/filter.py`, `core/llm_client.py`, `core/fallback.py`, `api/routes/recommendations.py`), `data/loader.py`'s `DatasetUnavailableError` for a clear startup failure, `tests/test_loader.py`, and this "known limitations" note.
 
 **Exit criteria**: No unhandled exceptions surface to the user in any tested scenario; logs are sufficient to explain any given recommendation response after the fact.
+
+**Verified**:
+- Booted the real server with the cache renamed aside and an invalid `DATASET_NAME`: previously a ~15-frame internal traceback from `datasets`/`huggingface_hub` with no mention of our cache path; now a single clear `DatasetUnavailableError` line naming the cache path and `DATASET_NAME`, and the process exits within 2s rather than hanging.
+- Booted the real server and made three real requests (normal, relaxed-filter, no-location-match); every log line for a request carries the same `request_id`, tracing the full path (`recommend request:` → `filter:` → `Groq call starting/succeeded` → `recommend response:`) end-to-end.
+- Added `test_candidate_cap_is_enforced_even_after_full_relaxation` (cuisine+budget+rating all relaxed, pool of 30 restaurants, cap still holds at 15) and a defensive truncation in `core/llm_client.py` itself (candidates > `max_candidates_to_llm` are truncated with a warning log before the prompt is built), so the cap holds even if a future caller bypasses `core.filter`.
+- Manual exploratory testing, both via direct API calls and via the real browser UI (Playwright, ad hoc): `extra_preferences` over 500 chars (422), `min_rating` at the 0 and 5.0 boundaries, whitespace-only location (client-side validation error, no request sent), empty request body (422), and a cuisine value with unicode/emoji (`日本料理 🍣`, correctly relaxed with zero errors). No unhandled exceptions or console/page errors in any case.
+
+### Known Limitations
+
+- **Single-process, in-memory state**: the LLM rate limiter (`core/rate_limiter.py`) and the loaded dataset (`app.state.restaurants_df`) are both per-process. Correct for one API instance; a multi-instance/multi-worker deployment would need a shared store (e.g. Redis) for the rate limiter to actually enforce the provider's account-wide limits, and each worker would separately hold the full dataset in memory.
+- **Dataset is Bangalore-only**: despite the problem statement's multi-city example ("Delhi, Bangalore"), the real dataset only covers Bangalore neighborhoods. A query for any other city correctly returns `location_matched=false`, not an error -- this is expected, not a bug.
+- **LLM output is non-deterministic across calls**: `temperature=0` reduces but doesn't eliminate variation (Groq's docs note determinism isn't guaranteed even at temperature 0), and model updates on Groq's end can shift phrasing/ranking over time. Groundedness (no hallucinated restaurants) is enforced in code regardless; explanation wording is not pinned.
+- **No persistence**: every request is stateless -- no accounts, no saved searches, no feedback loop. The frontend intentionally has no bookmark/save feature for this reason (see `docs/architecture.md` §9).
+- **No automated frontend test suite**: the frontend is static HTML/JS with no Python to unit test; verification is manual/Playwright-driven and done ad hoc, not part of the `pytest` suite or CI.
+- **Client-side rate limiting is a predictive guard, not a guarantee**: it prevents the common case of exceeding Groq's limits from this app's own traffic, but can't prevent a real 429 if the same `GROQ_API_KEY` is used concurrently by something outside this app. The existing retry/backoff on `RateLimitError` remains as a second layer for that case.
 
 ## Phase 7 — Packaging & Docs
 

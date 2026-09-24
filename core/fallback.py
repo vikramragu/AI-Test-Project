@@ -1,5 +1,9 @@
+import logging
+
 from core.models import RecommendationResult, RecommendedRestaurant, UserPreferences
 from data.schema import Restaurant
+
+logger = logging.getLogger(__name__)
 
 
 def _score(restaurant: Restaurant) -> float:
@@ -28,6 +32,8 @@ def fallback_rank(
     core.filter.
     """
     del preferences  # not used for scoring; kept for a consistent call signature
+
+    logger.info("fallback ranking used for %d candidates", len(candidates))
 
     ranked = sorted(candidates, key=_score, reverse=True)
     recommendations = [

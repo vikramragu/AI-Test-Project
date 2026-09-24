@@ -212,3 +212,31 @@ def test_candidate_cap_is_enforced():
     assert len(result.candidates) == 15
     ratings = [r.rating for r in result.candidates]
     assert ratings == sorted(ratings, reverse=True)
+
+
+def test_candidate_cap_is_enforced_even_after_full_relaxation():
+    # A large pool where cuisine, budget, and rating all get relaxed --
+    # the cap must still apply to the final (fully relaxed) candidate set,
+    # not just the unfiltered case, since relaxation runs before the cap.
+    rows = [
+        {
+            "name": f"Restaurant {i}",
+            "location": "HSR",
+            "cuisines": ["Cafe"],
+            "rating": 3.0 + (i % 20) * 0.05,
+            "cost": 300.0,
+            "budget_tier": "low",
+        }
+        for i in range(30)
+    ]
+    df = make_clean_df(rows)
+    prefs = UserPreferences(
+        location="HSR", cuisine="Sushi", budget="high", min_rating=4.9
+    )
+
+    result = filter_restaurants(df, prefs, max_candidates=15)
+
+    assert result.relaxed_filters == ["cuisine", "budget", "rating"]
+    assert len(result.candidates) == 15
+    ratings = [r.rating for r in result.candidates]
+    assert ratings == sorted(ratings, reverse=True)
